@@ -4,7 +4,6 @@
   lib,
   ...
 }:
-
 let
   cfg = config.services.tailscale;
   tun = cfg.interfaceName != "userspace-networking";
@@ -47,6 +46,20 @@ let
     (builtins.concatStringsSep "&")
     (params: if params != "" then "?${params}" else "")
   ];
+
+  tailscaledScript = pkgs.writeShellScript "tailscaled" ''
+    ${cfg.package}/bin/tailscaled ${lib.escapeShellArgs daemonFlags}
+  '';
+
+  tailscaleUpScript = pkgs.writeShellScript "tailscale-up" ''
+    ${cfg.package}/bin/tailscale up \
+     ${
+       lib.optionalString (
+         cfg.authKeyFile != null
+       ) "--auth-key=$(${pkgs.coreutils}/bin/cat ${cfg.authKeyFile})${lib.escapeShellArg authKeyParams}"
+     } \
+     ${lib.escapeShellArgs cfg.extraUpFlags}
+  '';
 in
 {
   meta.maintainers = with lib.maintainers; [ willowispll ];
@@ -173,11 +186,12 @@ in
 
     finit.services.tailscaled = {
       description = "tailscaled";
+      notify = "systemd";
       conditions = [
         "service/syslogd/ready"
         "net/route/default"
       ];
-      command = "${cfg.package}/bin/tailscaled " + lib.escapeShellArgs daemonFlags;
+      command = "${tailscaledScript}";
       post = "";
       path = [
         (dirOf config.security.wrapperDir)
@@ -193,20 +207,10 @@ in
       description = "tailscale up";
 
       conditions = [
-        "service/tailscaled/running"
+        "service/tailscaled/ready"
       ];
 
-      command = ''
-        sleep 2
-
-        AUTH=""
-        ${lib.optionalString (cfg.authKeyFile != null) ''
-          AUTH="--auth-key $(cat ${cfg.authKeyFile})${authKeyParams}"
-        ''}
-        exec ${cfg.package}/bin/tailscale up \
-          $AUTH \
-          ${lib.escapeShellArgs cfg.extraUpFlags}
-      '';
+      command = "${tailscaleUpScript}";
       log = true;
     };
   };
