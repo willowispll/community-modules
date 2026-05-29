@@ -5,10 +5,10 @@
   ...
 }:
 let
-  cfg = config.programs.amnezia-vpn;
+  cfg = config.services.amnezia-vpn;
 in
 {
-  options.programs.amnezia-vpn = {
+  options.services.amnezia-vpn = {
     enable = lib.mkEnableOption "The AmneziaVPN client";
     package = lib.mkPackageOption pkgs "amnezia-vpn" { };
   };
